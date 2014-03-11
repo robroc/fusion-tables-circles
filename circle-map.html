@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="initial-scale=1, width=device-width"/>
+<title>FT circle map</title>
+
+<style type="text/css">
+
+    
+    #map-canvas {
+        width: 100%;
+        height: 600px;
+    }
+    
+      
+</style>
+
+<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
+<script src="https://maps.googleapis.com/maps/api/js?v=3.exp&sensor=false"></script>
+
+
+<script type="text/javascript">
+      var fn = fn || {};
+
+    // begin main function
+    $(document).ready(function () {
+        fn.retrieveData();
+    });
+
+    // begin data configuration object
+    var fn = {
+
+        // array to hold our circle objects
+        circleMap: [],
+
+        // array to hold info windows we construct
+        infoWindows: [],
+
+        // retrieve json from fusion table
+        retrieveData: function () {
+            $.getJSON("https://www.googleapis.com/fusiontables/v1/query?sql=SELECT+*FROM+172WAtA8dK_mcl7vcafEOREQNtn9MjAXP1dKxTXru&key=AIzaSyAOF4N5Uhrkfb1nhO4nsWuByLEPVvaQb_M", fn.processData)
+        },
+        
+
+        // process json from fusion table
+        processData: function (data) {
+
+            // see the data coming back from the fusion tables api
+            console.log(data);
+
+            // shortcuts for accessing columns
+            var cityLatLngColumn = 0;
+            var moneyColumn = 1;
+            var countColumn = 2;
+
+
+            // loop through the rows to build a circle object for each
+            for (var i = 0; i < data.rows.length; i++) {
+                var row = data.rows[i];
+
+                // json source has lat/lng in a single column. split it on comma
+                var cityLatLngRaw = row[cityLatLngColumn];
+                var commaPos = cityLatLngRaw.indexOf(',');
+                var lat = parseFloat(cityLatLngRaw.substring(0, commaPos));
+                var lng = parseFloat(cityLatLngRaw.substring(commaPos + 1, cityLatLngRaw.length));
+                var cityLatLng = new google.maps.LatLng(lat, lng)
+
+
+                // build our circle object
+                fn.circleMap[parseInt(i)] = {
+                    'center': cityLatLng,             
+                    'money': (parseInt(row[moneyColumn])/1000000).toFixed(2),
+                    'count': row[countColumn]
+                }
+            }
+
+            // see what our array of circle objects looks like
+            console.log(fn.circleMap);
+
+            // create the map based on the div id
+            fn.createMap("map-canvas");
+        },
+
+        // create the map
+        createMap: function (mapDiv) {
+            var map = new google.maps.Map(document.getElementById(mapDiv), {
+                center: new google.maps.LatLng(48.213971458247336, -69.38291015625),
+                zoom: 6,
+                draggable: true,
+                mapTypeControl: false,
+                navigationControl: true,
+                streetViewControl: false,
+                panControl: true,
+                scaleControl: true,
+                mapTypeId: google.maps.MapTypeId.ROADMAP,
+                navigationControlOptions: {
+                    style: google.maps.NavigationControlStyle.SMALL,
+                    position: google.maps.ControlPosition.RIGHT_TOP
+                }
+            });
+
+            // add our circles to our map
+            fn.addCirclesToMap(map);
+        },
+
+        // function to add our circles to map
+        addCirclesToMap: function (map) {
+
+            //begin circle loop
+            for (var i = 0; i < fn.circleMap.length; i++) {
+
+                // construct the circle for each value in countyMap array
+                var circleOptions = {
+                    strokeColor: "#365444",
+                    strokeOpacity: .8,
+                    strokeWeight: 2,
+                    fillColor: "#99C9B0",
+                    fillOpacity: 0.7,
+                    map: map,
+                    clickable: true,
+                    center: fn.circleMap[i].center,
+                    radius: fn.circleMap[i].count * 4000
+                };
+
+                // create a google map circle
+                var mapCircle = new google.maps.Circle(circleOptions);
+
+                // add it to the map
+                mapCircle.setMap(map);
+
+                // create an info window based on this circle
+                fn.createInfoWindowArray(mapCircle.center, fn.circleMap[i].money, fn.circleMap[i].count, i);
+
+                // add a click event
+                fn.attachClick(mapCircle, i, map);
+            }
+        },
+
+        // function to create an info window and push to an array
+        createInfoWindowArray: function (center, money, count, iwIndex) {
+
+            // concatenating a whole lot of html
+            recallInfoWindow =
+                '<h3>Announcements for this region </h3>' +
+                '<p style=\'font-family: \"Trebuchet MS\", Verdana, sans-serif; font-size: 13px;  color: #555535;\'>' +
+                '<b>Number:</b> ' + count + '<br>' +
+                '<b>Money commitments: </b> $' + money + 'M<br /> </p>';
+
+            var iwOptions = {
+                position: center,
+                content: recallInfoWindow,
+            };
+
+            fn.infoWindows[iwIndex] = new google.maps.InfoWindow(iwOptions);
+
+        },
+
+        // close an info window if one is open
+        closeExistingIWs: function () {
+            for (var i = 0; i < fn.infoWindows.length; i++) {
+                fn.infoWindows[i].close();
+            }
+        },
+
+        // open a new info window
+        openIW: function (iwIndex, map) {
+            fn.infoWindows[iwIndex].open(map);
+        },
+
+        // add click event to the circle
+        attachClick: function (circle, iwIndex, map) {
+            google.maps.event.addListener(circle, 'click', function (evt) {
+                fn.closeExistingIWs();
+                fn.openIW(iwIndex, map);
+            });
+        }
+    }
+</script>
+</head>
+
+<body>
+
+ 
+    <div id="map-canvas">Loading map...</div>
+    
+  
+</body>
+</html>
+
